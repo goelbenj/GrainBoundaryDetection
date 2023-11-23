@@ -69,7 +69,7 @@ masks = []
 for file in sorted(os.listdir(image_dir)):
     # Load the image and resize to the target size
     img = np.array(PIL.Image.open(os.path.join(image_dir, file)))
-    img = tf.image.resize(img, target_size)
+    img = tf.image.resize(img, target_size).numpy()
     
     # Append the resized image to the list of images
     images.append(img)
@@ -79,7 +79,8 @@ for file in sorted(os.listdir(mask_dir)):
     # Load the corresponding mask and resize to the target size
     #mask_file = file.replace('.jpg', '.png')
     mask = np.array(PIL.Image.open(os.path.join(mask_dir, file)))
-    mask = tf.image.resize(mask, target_size)
+    mask = np.expand_dims(mask, axis=-1)
+    mask = tf.image.resize(mask, target_size).numpy()
     
     # Append the resized mask to the list of masks
     masks.append(mask)
