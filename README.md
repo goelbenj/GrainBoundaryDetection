@@ -1,13 +1,12 @@
 # GrainBoundaryDetection
-Machine Learning Image Processing Techniques on Grain Size and Grain Boundary Analysis
 
+Machine Learning Image Processing Techniques on Grain Size and Grain Boundary Analysis
 
 All of the files in this notebook can be run in google colab or just on your desktop on jupyter notebook
 
 The name of the paper associated with this code is:
 
 Machine Learning Image Processing Techniques on Grain Size and Grain Boundary Analysis
-
 
 # KAGGLE DATASETS AVAILABLE
 
@@ -24,18 +23,16 @@ https://www.kaggle.com/datasets/peterwarren/exone-stainless-steel-316l-grains-50
 https://www.kaggle.com/datasets/peterwarren/voronoi-artificial-grains-gen
 
 # GrainsV2:
+
 This one has the manually segmented images as well
 
 coming soon
-
-
 
 # QUICK CODE Explanation for each code:
 
 most explanations are given in the code, it is well commented
 also the paper can be used too:
 Machine Learning Image Processing Techniques on Grain Size and Grain Boundary Analysis
-
 
 # Grain Intercept Measurement Method Grad.ipynb
 
@@ -55,14 +52,10 @@ gradient is calculated (the first derivative of the image). Lower changes in pix
 intensity can be filter out, unless they directly connected to a high change in
 pixel intensity.
 
-
 # Grain Intercept Measurement Method HED.ipynb
-
 
 # Grain Intercept Method Manual Thresholding.ipynb
 
-
 # PLANIMETRIC SHAPES.ipynb
-
 
 # Planimetric Method Areas.ipynb
