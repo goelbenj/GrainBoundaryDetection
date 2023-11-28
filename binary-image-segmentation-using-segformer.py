@@ -252,6 +252,8 @@ def create_mask(pred_mask):
 
 def show_predictions(dataset=None, num=1, save_name=None):
     if dataset:
+        if not os.path.exists(save_name):
+            os.makedirs(save_name)
         for i, sample in enumerate(dataset.take(num)):
             file_name = os.path.join(save_name, f'{i}.jpg')
             images, masks = sample["pixel_values"], sample["labels"]
@@ -277,7 +279,7 @@ class DisplayCallback(tf.keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         clear_output(wait=True)
-        show_predictions(self.dataset, save_name='./outputs/train')
+        show_predictions(self.dataset, save_name=f'./outputs/train/epoch{epoch+1}')
         print("\nSample Prediction after epoch {}\n".format(epoch + 1))
 
 
