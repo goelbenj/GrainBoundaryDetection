@@ -43,12 +43,12 @@ def load_image_file(image_path, mask_path):
 # In[ ]:
 
 
-train_image_dir = "/Users/bengoel/Documents/GrainBoundaryDetection/GRAIN_DATA_SET/RG"
-train_mask_dir = "/Users/bengoel/Documents/GrainBoundaryDetection/GRAIN_DATA_SET/RGMask"
-valid_image_dir = "/Users/bengoel/Documents/GrainBoundaryDetection/GRAIN_DATA_SET/RG"
-valid_mask_dir = "/Users/bengoel/Documents/GrainBoundaryDetection/GRAIN_DATA_SET/RGMask"
-test_image_dir = "/Users/bengoel/Documents/GrainBoundaryDetection/GRAIN_DATA_SET/RG"
-test_mask_dir = "/Users/bengoel/Documents/GrainBoundaryDetection/GRAIN_DATA_SET/RGMask"
+train_image_dir = "./GRAIN_DATA_SET/RG"
+train_mask_dir = "./GRAIN_DATA_SET/RGMask"
+valid_image_dir = train_image_dir
+valid_mask_dir = train_mask_dir
+test_image_dir = train_image_dir
+test_mask_dir = train_mask_dir
 
 # Define list of image and mask file names
 train_image_names = sorted(os.listdir(train_image_dir))
@@ -181,7 +181,7 @@ print(train_ds.element_spec)
 # In[ ]:
 
 
-def display(display_list):
+def display(display_list, save_name=None):
     plt.figure(figsize=(15, 15))
 
     title = ["Input Image", "True Mask", "Predicted Mask"]
@@ -192,6 +192,8 @@ def display(display_list):
         plt.imshow(tf.keras.utils.array_to_img(display_list[i]))
         plt.axis("off")
     plt.show()
+    if save_name is not None:
+        plt.savefig(save_name)
 
 
 for samples in train_ds.take(2):
@@ -209,7 +211,7 @@ for samples in train_ds.take(2):
 
 from transformers import TFSegformerForSemanticSegmentation
 
-model_checkpoint = "nvidia/mit-b0"
+model_checkpoint = './pretrained/mit-b0'
 id2label =  {0: "outer", 1: "landslide"}
 label2id = {label: id for id, label in id2label.items()}
 num_labels = len(id2label)
@@ -229,7 +231,7 @@ model = TFSegformerForSemanticSegmentation.from_pretrained(
 
 
 lr = 0.00006
-epochs = 5
+epochs = 20
 optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 model.compile(optimizer=optimizer)
 
@@ -248,21 +250,23 @@ def create_mask(pred_mask):
     return pred_mask[0]
 
 
-def show_predictions(dataset=None, num=1):
+def show_predictions(dataset=None, num=1, save_name=None):
     if dataset:
-        for sample in dataset.take(num):
+        for i, sample in enumerate(dataset.take(num)):
+            file_name = os.path.join(save_name, f'{i}.jpg')
             images, masks = sample["pixel_values"], sample["labels"]
             masks = tf.expand_dims(masks, -1)
             pred_masks = model.predict(images).logits
             images = tf.transpose(images, (0, 2, 3, 1))
-            display([images[0], masks[0], create_mask(pred_masks)])
+            display([images[0], masks[0], create_mask(pred_masks)], file_name)
     else:
         display(
             [
                 sample_image,
                 sample_mask,
                 create_mask(model.predict(tf.expand_dims(sample_image, 0))),
-            ]
+            ],
+            save_name
         )
 
 
@@ -273,7 +277,7 @@ class DisplayCallback(tf.keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         clear_output(wait=True)
-        show_predictions(self.dataset)
+        show_predictions(self.dataset, save_name='./outputs/train')
         print("\nSample Prediction after epoch {}\n".format(epoch + 1))
 
 
@@ -293,7 +297,7 @@ history = model.fit(
 # In[ ]:
 
 
-model.save_weights("/kaggle/working/segformer-5-b1.h5")
+model.save_weights("./weights/segformer.h5")
 
 
 # # Loss Plot
@@ -323,5 +327,5 @@ plt.savefig("train_eval_plot_segformer-5-b1.jpg")
 # In[ ]:
 
 
-show_predictions(valid_ds, 10)
+show_predictions(valid_ds, 10, save_name='./outputs/infer')
 
