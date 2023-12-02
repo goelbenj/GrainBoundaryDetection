@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[31]:
-
-
 # This Python 3 environment comes with many helpful analytics libraries installed
 # It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python
 # For example, here's several helpful packages to load
@@ -25,9 +22,6 @@ data_dir = Path('./GRAIN_DATA_SET')
 # You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session
 
 
-# In[32]:
-
-
 import tensorflow as tf
 import PIL
 import os
@@ -40,17 +34,9 @@ from skimage.io import imread, imshow
 from skimage.transform import resize
 import matplotlib.pyplot as plt
 
-
-# In[33]:
-
-
 IMG_WIDTH = 128
 IMG_HEIGHT = 128
 IMG_CHANNELS = 3
-
-
-# In[34]:
-
 
 import os
 
@@ -86,26 +72,14 @@ for file in sorted(os.listdir(mask_dir)):
     masks.append(mask)
     
 
-
-# In[35]:
-
-
 image_x = random.randint(0, 300)
 image_x
-
-
-# In[36]:
-
 
 imshow(images[image_x])
 print((images[image_x] / 255))
 plt.show()
 imshow(masks[image_x])
 plt.show()
-
-
-# In[37]:
-
 
 #Build the model
 
@@ -168,10 +142,6 @@ model = tf.keras.Model(inputs=[inputs], outputs=[outputs])
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 model.summary()
 
-
-# In[38]:
-
-
 # create the X and Y (input and output)
 
 X_train = np.array(images)
@@ -180,29 +150,17 @@ Y_train = np.array(masks)
 # change the Y to a boolean
 Y_train = np.where(Y_train > 245, True, False)
 
-
-
-# In[41]:
-
-
 #convert the boolean where it is true (any of the 3 channels) to a (336, 128, 128, 1)
 #basically reduce the 3 channel dimension RGB to just one boolean value
 
 Y_t= np.any(Y_train, axis=-1)
 Y_t = Y_t.reshape(480, 128, 128, 1)
-
-
-# In[42]:
-
-
 ################################
 
 # create the checkpoint path
 
 checkpoint_path = 'checkpoint_path/GrainsTraining.ckpt'
 checkpoint_dir = os.path.dirname(checkpoint_path)
-
-
 
 #Modelcheckpoint
 checkpointer = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True)
@@ -215,14 +173,7 @@ results = model.fit(X_train, Y_t, validation_split=0.1, batch_size=16, epochs=20
 
 ####################################
 
-
-# In[43]:
-
-
-####################################
-
 idx = random.randint(0, len(X_train))
-
 
 preds_train = model.predict(X_train[:int(X_train.shape[0]*0.9)], verbose=1)
 preds_val = model.predict(X_train[int(X_train.shape[0]*0.9):], verbose=1)
@@ -233,10 +184,6 @@ preds_train_t = (preds_train > 0.5).astype(np.uint8)
 preds_val_t = (preds_val > 0.5).astype(np.uint8)
 #preds_test_t = (preds_test > 0.5).astype(np.uint8)
 
-
-# In[44]:
-
-
 # Perform a sanity check on some random training samples
 ix = random.randint(0, len(preds_train_t))
 imshow(X_train[ix])
@@ -245,10 +192,6 @@ imshow(np.squeeze(Y_t[ix]))
 plt.show()
 imshow(np.squeeze(preds_train_t[ix]))
 plt.show()
-
-
-# In[45]:
-
 
 # Perform a sanity check on some random validation samples
 ix = random.randint(0, len(preds_val_t))
@@ -259,16 +202,4 @@ plt.show()
 imshow(np.squeeze(preds_val_t[ix]))
 plt.show()
 
-
-
-# In[46]:
-
-
 model.save('Grains_DETECTION_UNET.h5')
-
-
-# In[ ]:
-
-
-
-
