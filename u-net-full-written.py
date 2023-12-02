@@ -37,6 +37,9 @@ import matplotlib.pyplot as plt
 IMG_WIDTH = 128
 IMG_HEIGHT = 128
 IMG_CHANNELS = 3
+DATA_SIZE = 480
+# set seed
+random.seed(2023)
 
 import os
 
@@ -52,7 +55,9 @@ images = []
 masks = []
 
 # Iterate through the directories and load the images and masks
-for file in sorted(os.listdir(image_dir)):
+for i, file in enumerate(sorted(os.listdir(image_dir))):
+    if i == DATA_SIZE:
+        break
     # Load the image and resize to the target size
     img = np.array(PIL.Image.open(os.path.join(image_dir, file)))
     img = tf.image.resize(img, target_size).numpy()
@@ -60,8 +65,9 @@ for file in sorted(os.listdir(image_dir)):
     # Append the resized image to the list of images
     images.append(img)
     
-for file in sorted(os.listdir(mask_dir)):
-    
+for i, file in enumerate(sorted(os.listdir(mask_dir))):
+    if i == DATA_SIZE:
+        break
     # Load the corresponding mask and resize to the target size
     #mask_file = file.replace('.jpg', '.png')
     mask = np.array(PIL.Image.open(os.path.join(mask_dir, file)))
@@ -72,14 +78,14 @@ for file in sorted(os.listdir(mask_dir)):
     masks.append(mask)
     
 
-image_x = random.randint(0, 300)
+image_x = random.randint(0, DATA_SIZE)
 image_x
 
 imshow(images[image_x])
 print((images[image_x] / 255))
-plt.show()
+# plt.show()
 imshow(masks[image_x])
-plt.show()
+# plt.show()
 
 #Build the model
 
@@ -150,11 +156,12 @@ Y_train = np.array(masks)
 # change the Y to a boolean
 Y_train = np.where(Y_train > 245, True, False)
 
+mask_length = len(masks)
 #convert the boolean where it is true (any of the 3 channels) to a (336, 128, 128, 1)
 #basically reduce the 3 channel dimension RGB to just one boolean value
 
 Y_t= np.any(Y_train, axis=-1)
-Y_t = Y_t.reshape(480, 128, 128, 1)
+Y_t = Y_t.reshape(mask_length, IMG_WIDTH, IMG_HEIGHT, 1)
 ################################
 
 # create the checkpoint path
@@ -187,11 +194,11 @@ preds_val_t = (preds_val > 0.5).astype(np.uint8)
 # Perform a sanity check on some random training samples
 ix = random.randint(0, len(preds_train_t))
 imshow(X_train[ix])
-plt.show()
+# plt.show()
 imshow(np.squeeze(Y_t[ix]))
-plt.show()
+# plt.show()
 imshow(np.squeeze(preds_train_t[ix]))
-plt.show()
+# plt.show()
 
 # Perform a sanity check on some random validation samples
 ix = random.randint(0, len(preds_val_t))
@@ -203,3 +210,34 @@ imshow(np.squeeze(preds_val_t[ix]))
 plt.show()
 
 model.save('Grains_DETECTION_UNET.h5')
+
+
+# calculcate dice coefficients
+# Initialize a list to store the dice coefficients for each mask
+dice_coefficients = []
+
+loop = len(preds_train_t)
+
+real_mask = Y_t
+pred_mask = preds_train_t
+
+
+# Iterate through the masks in both directories
+for i in range(loop):
+  # Calculate the intersection of the masks
+  intersection = np.sum(pred_mask[i] * real_mask[i])
+
+  # Calculate the size of each mask
+  predicted_mask_size = np.sum(pred_mask[i])
+  real_mask_size = np.sum(real_mask[i])
+
+  # Calculate the dice coefficient for the two masks
+  dice = 2 * intersection / (predicted_mask_size + real_mask_size)
+
+  # Add the dice coefficient to the list
+  dice_coefficients.append(dice)
+
+# Calculate the average dice coefficient for the set of masks
+average_dice_coefficient = np.mean(dice_coefficients)
+
+print(f'Average dice coefficient for the data it was trained on: {average_dice_coefficient:.4f}')
