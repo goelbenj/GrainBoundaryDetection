@@ -22,26 +22,27 @@ data_dir = Path('./GRAIN_DATA_SET')
 # You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session
 
 
-import tensorflow as tf
-import PIL
-import os
-import random
+import cv2
+import math
+import matplotlib.pyplot as plt
 import numpy as np
- 
-from tqdm import tqdm 
-
+import os
+import PIL
+import random
 from skimage.io import imread, imshow
 from skimage.transform import resize
-import matplotlib.pyplot as plt
+import tensorflow as tf
+from tqdm import tqdm 
+
 
 IMG_WIDTH = 128
 IMG_HEIGHT = 128
 IMG_CHANNELS = 3
 DATA_SIZE = 480
+NUM_EPOCHS = 30
+TRAIN = False
 # set seed
 random.seed(2023)
-
-import os
 
 # Set the directories containing the images and masks
 image_dir = os.path.join(data_dir, 'RG')
@@ -87,67 +88,6 @@ print((images[image_x] / 255))
 imshow(masks[image_x])
 # plt.show()
 
-#Build the model
-
-inputs = tf.keras.layers.Input((IMG_WIDTH, IMG_HEIGHT, IMG_CHANNELS))
-s = tf.keras.layers.Lambda(lambda x: x / 255)(inputs)
-
-#Contraction path
-c1 = tf.keras.layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(s)
-c1 = tf.keras.layers.Dropout(0.1)(c1)
-c1 = tf.keras.layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c1)
-p1 = tf.keras.layers.MaxPooling2D((2, 2))(c1)
-
-c2 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(p1)
-c2 = tf.keras.layers.Dropout(0.1)(c2)
-c2 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c2)
-p2 = tf.keras.layers.MaxPooling2D((2, 2))(c2)
- 
-c3 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(p2)
-c3 = tf.keras.layers.Dropout(0.2)(c3)
-c3 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c3)
-p3 = tf.keras.layers.MaxPooling2D((2, 2))(c3)
- 
-c4 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(p3)
-c4 = tf.keras.layers.Dropout(0.2)(c4)
-c4 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c4)
-p4 = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(c4)
- 
-c5 = tf.keras.layers.Conv2D(256, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(p4)
-c5 = tf.keras.layers.Dropout(0.3)(c5)
-c5 = tf.keras.layers.Conv2D(256, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c5)
-
-#Expansive path 
-u6 = tf.keras.layers.Conv2DTranspose(128, (2, 2), strides=(2, 2), padding='same')(c5)
-u6 = tf.keras.layers.concatenate([u6, c4])
-c6 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(u6)
-c6 = tf.keras.layers.Dropout(0.2)(c6)
-c6 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c6)
- 
-u7 = tf.keras.layers.Conv2DTranspose(64, (2, 2), strides=(2, 2), padding='same')(c6)
-u7 = tf.keras.layers.concatenate([u7, c3])
-c7 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(u7)
-c7 = tf.keras.layers.Dropout(0.2)(c7)
-c7 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c7)
- 
-u8 = tf.keras.layers.Conv2DTranspose(32, (2, 2), strides=(2, 2), padding='same')(c7)
-u8 = tf.keras.layers.concatenate([u8, c2])
-c8 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(u8)
-c8 = tf.keras.layers.Dropout(0.1)(c8)
-c8 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c8)
- 
-u9 = tf.keras.layers.Conv2DTranspose(16, (2, 2), strides=(2, 2), padding='same')(c8)
-u9 = tf.keras.layers.concatenate([u9, c1], axis=3)
-c9 = tf.keras.layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(u9)
-c9 = tf.keras.layers.Dropout(0.1)(c9)
-c9 = tf.keras.layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c9)
- 
-outputs = tf.keras.layers.Conv2D(1, (1, 1), activation='sigmoid')(c9)
- 
-model = tf.keras.Model(inputs=[inputs], outputs=[outputs])
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-model.summary()
-
 # create the X and Y (input and output)
 
 X_train = np.array(images)
@@ -164,19 +104,84 @@ Y_t= np.any(Y_train, axis=-1)
 Y_t = Y_t.reshape(mask_length, IMG_WIDTH, IMG_HEIGHT, 1)
 ################################
 
-# create the checkpoint path
+if TRAIN:
+    #Build the model
 
-checkpoint_path = 'checkpoint_path/GrainsTraining.ckpt'
-checkpoint_dir = os.path.dirname(checkpoint_path)
+    inputs = tf.keras.layers.Input((IMG_WIDTH, IMG_HEIGHT, IMG_CHANNELS))
+    s = tf.keras.layers.Lambda(lambda x: x / 255)(inputs)
 
-#Modelcheckpoint
-checkpointer = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True)
+    #Contraction path
+    c1 = tf.keras.layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(s)
+    c1 = tf.keras.layers.Dropout(0.1)(c1)
+    c1 = tf.keras.layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c1)
+    p1 = tf.keras.layers.MaxPooling2D((2, 2))(c1)
 
-callbacks = [
-        tf.keras.callbacks.EarlyStopping(patience=2, monitor='val_loss'),
-        tf.keras.callbacks.TensorBoard(log_dir='logs')]
+    c2 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(p1)
+    c2 = tf.keras.layers.Dropout(0.1)(c2)
+    c2 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c2)
+    p2 = tf.keras.layers.MaxPooling2D((2, 2))(c2)
+    
+    c3 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(p2)
+    c3 = tf.keras.layers.Dropout(0.2)(c3)
+    c3 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c3)
+    p3 = tf.keras.layers.MaxPooling2D((2, 2))(c3)
+    
+    c4 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(p3)
+    c4 = tf.keras.layers.Dropout(0.2)(c4)
+    c4 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c4)
+    p4 = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(c4)
+    
+    c5 = tf.keras.layers.Conv2D(256, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(p4)
+    c5 = tf.keras.layers.Dropout(0.3)(c5)
+    c5 = tf.keras.layers.Conv2D(256, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c5)
 
-results = model.fit(X_train, Y_t, validation_split=0.1, batch_size=16, epochs=20, callbacks=callbacks)
+    #Expansive path 
+    u6 = tf.keras.layers.Conv2DTranspose(128, (2, 2), strides=(2, 2), padding='same')(c5)
+    u6 = tf.keras.layers.concatenate([u6, c4])
+    c6 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(u6)
+    c6 = tf.keras.layers.Dropout(0.2)(c6)
+    c6 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c6)
+    
+    u7 = tf.keras.layers.Conv2DTranspose(64, (2, 2), strides=(2, 2), padding='same')(c6)
+    u7 = tf.keras.layers.concatenate([u7, c3])
+    c7 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(u7)
+    c7 = tf.keras.layers.Dropout(0.2)(c7)
+    c7 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c7)
+    
+    u8 = tf.keras.layers.Conv2DTranspose(32, (2, 2), strides=(2, 2), padding='same')(c7)
+    u8 = tf.keras.layers.concatenate([u8, c2])
+    c8 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(u8)
+    c8 = tf.keras.layers.Dropout(0.1)(c8)
+    c8 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c8)
+    
+    u9 = tf.keras.layers.Conv2DTranspose(16, (2, 2), strides=(2, 2), padding='same')(c8)
+    u9 = tf.keras.layers.concatenate([u9, c1], axis=3)
+    c9 = tf.keras.layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(u9)
+    c9 = tf.keras.layers.Dropout(0.1)(c9)
+    c9 = tf.keras.layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(c9)
+    
+    outputs = tf.keras.layers.Conv2D(1, (1, 1), activation='sigmoid')(c9)
+    
+    model = tf.keras.Model(inputs=[inputs], outputs=[outputs])
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    model.summary()
+
+    # create the checkpoint path
+
+    checkpoint_path = 'checkpoint_path/GrainsTraining.ckpt'
+    checkpoint_dir = os.path.dirname(checkpoint_path)
+
+    #Modelcheckpoint
+    checkpointer = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True)
+
+    callbacks = [
+            tf.keras.callbacks.EarlyStopping(patience=2, monitor='val_loss'),
+            tf.keras.callbacks.TensorBoard(log_dir='logs')]
+
+    results = model.fit(X_train, Y_t, validation_split=0.1, batch_size=16, epochs=NUM_EPOCHS, callbacks=callbacks)
+    model.save('Grains_DETECTION_UNET.h5')
+else:
+    model = tf.keras.models.load_model("Grains_DETECTION_UNET.h5")
 
 ####################################
 
@@ -203,13 +208,12 @@ imshow(np.squeeze(preds_train_t[ix]))
 # Perform a sanity check on some random validation samples
 ix = random.randint(0, len(preds_val_t))
 imshow(X_train[int(X_train.shape[0]*0.9):][ix])
-plt.show()
+# plt.show()
 imshow(np.squeeze(Y_t[int(Y_train.shape[0]*0.9):][ix]))
-plt.show()
+# plt.show()
 imshow(np.squeeze(preds_val_t[ix]))
-plt.show()
+# plt.show()
 
-model.save('Grains_DETECTION_UNET.h5')
 
 
 # calculcate dice coefficients
@@ -241,3 +245,79 @@ for i in range(loop):
 average_dice_coefficient = np.mean(dice_coefficients)
 
 print(f'Average dice coefficient for the data it was trained on: {average_dice_coefficient:.4f}')
+
+# Now the measurement for LOOPS, one for each of the variables 3 total
+# 1. circularity
+# 2. max/min
+# 3. X/Y (aspect ratio)
+
+
+# This loop reads all the images and then stores the area of each grain for the image in an array
+# Circularity ratio For Loop all images
+def calc_circularity(masks):
+    CR = []
+    for pred in masks:
+        # pred *= 255
+        # ret, thresh = cv2.threshold(pred, 127, 255, cv2.THRESH_BINARY)
+
+        contours, hierarchy = cv2.findContours(pred, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        for i, contour in enumerate(contours):
+            area = cv2.contourArea(contour)
+            perimeter = cv2.arcLength(contour, True)
+            # Only calculate circularity for non-pointwise contours
+            if perimeter:
+                circularity_ratio = (4 * math.pi * area) / (perimeter ** 2)
+                CR.append(circularity_ratio)
+
+    # Print results
+    avg_CR = np.mean(CR)
+    print(f"Average Circularity: {avg_CR}")
+    CR_std = np.std(CR)
+    print(f"Circularity Std. Dev: {CR_std}")
+
+
+# Now the Max/Min and aspect ratio
+def calc_max_min_diameter_and_aspect_ratio(masks):
+    MAX = []
+    MIN = []
+    AR = []
+    for pred in masks:
+        # ret, thresh = cv2.threshold(pred, 127, 255, cv2.THRESH_BINARY)
+
+        contours, hierarchy = cv2.findContours(pred, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Iterate through all the contours
+        for contour in contours:
+            # Calculate the convex hull of the contour
+            hull = cv2.convexHull(contour)
+
+            # Initialize the maximum and minimum distances to zero
+            max_distance = 0
+            min_distance = float('inf')
+
+            # Iterate through all pairs of points on the convex hull
+            for i in range(len(hull)):
+                for j in range(i+1, len(hull)):
+                    # Calculate the distance between the two points
+                    distance = np.sqrt((hull[i][0][0] - hull[j][0][0])**2 + (hull[i][0][1] - hull[j][0][1])**2)
+
+                    # Update the maximum and minimum distances if necessary
+                    if distance > max_distance:
+                        max_distance = distance
+                    if distance < min_distance:
+                        min_distance = distance
+
+            # Add the maximum and minimum distances for the current contour to the list of distances
+            MAX.append([max_distance])
+            MIN.append([min_distance])
+            aspect_ratio = max_distance/min_distance
+            AR.append([aspect_ratio])
+
+    # Print results
+    print(f"Average Max Diameter {np.mean(MAX)}")
+    print(f"Max Diameter Std. Dev: {np.std(MAX)}")
+
+
+calc_circularity(preds_val_t)
+calc_max_min_diameter_and_aspect_ratio(preds_val_t)
