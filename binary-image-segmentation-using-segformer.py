@@ -156,9 +156,9 @@ def display(display_list, save_name=None):
         plt.title(title[i])
         plt.imshow(tf.keras.utils.array_to_img(display_list[i]))
         plt.axis("off")
-    plt.show()
     if save_name is not None:
         plt.savefig(save_name)
+    plt.show()
 
 # Uncomment for debugging
 # for samples in train_ds.take(2):
