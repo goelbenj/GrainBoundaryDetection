@@ -253,45 +253,30 @@ print(f'Average dice coefficient for the data it was trained on: {average_dice_c
 
 
 # This loop reads all the images and then stores the area of each grain for the image in an array
-# Circularity ratio For Loop all images
-def calc_circularity(masks):
+# Circularity, max diameter, min diameter, and aspect ratio for all masks
+def calc_grain_dimension_measurements(masks):
     CR = []
+    MAX = []
+    MIN = []
+    AR = []
     for pred in masks:
         # pred *= 255
         # ret, thresh = cv2.threshold(pred, 127, 255, cv2.THRESH_BINARY)
 
         contours, hierarchy = cv2.findContours(pred, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        # Iterate through all the contours
         for i, contour in enumerate(contours):
             area = cv2.contourArea(contour)
             perimeter = cv2.arcLength(contour, True)
-            # Only calculate circularity for non-pointwise contours
-            if perimeter:
-                circularity_ratio = (4 * math.pi * area) / (perimeter ** 2)
-                CR.append(circularity_ratio)
+            # Only calculate metrics for non-pointwise contours
+            if not perimeter:
+                continue
+            circularity_ratio = (4 * math.pi * area) / (perimeter ** 2)
+            CR.append(circularity_ratio)
 
-    # Print results
-    avg_CR = np.mean(CR)
-    print(f"Average Circularity: {avg_CR}")
-    CR_std = np.std(CR)
-    print(f"Circularity Std. Dev: {CR_std}")
-
-
-# Now the Max/Min and aspect ratio
-def calc_max_min_diameter_and_aspect_ratio(masks):
-    MAX = []
-    MIN = []
-    AR = []
-    for pred in masks:
-        # ret, thresh = cv2.threshold(pred, 127, 255, cv2.THRESH_BINARY)
-
-        contours, hierarchy = cv2.findContours(pred, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        # Iterate through all the contours
-        for contour in contours:
             # Calculate the convex hull of the contour
             hull = cv2.convexHull(contour)
-
             # Initialize the maximum and minimum distances to zero
             max_distance = 0
             min_distance = float('inf')
@@ -315,12 +300,16 @@ def calc_max_min_diameter_and_aspect_ratio(masks):
             AR.append([aspect_ratio])
 
     # Print results
+    print(f"Average Circularity: {np.mean(CR)}")
+    print(f"Circularity Std. Dev: {np.std(CR)}")
     print(f"Average Max Diameter {np.mean(MAX)}")
     print(f"Max Diameter Std. Dev: {np.std(MAX)}")
+    print(f"Average Min Diameter {np.mean(MIN)}")
+    print(f"Min Diameter Std. Dev: {np.std(MIN)}")
+    print(f"Average Aspect Ratio {np.mean(AR)}")
+    print(f"Aspect Ratio Std. Dev: {np.std(AR)}")
 
 
 Y_t = Y_t.astype(np.uint8)
-calc_circularity(Y_t)
-calc_max_min_diameter_and_aspect_ratio(Y_t)
-calc_circularity(preds_val_t)
-calc_max_min_diameter_and_aspect_ratio(preds_val_t)
+calc_grain_dimension_measurements(Y_t)
+calc_grain_dimension_measurements(preds_val_t)
