@@ -13,6 +13,17 @@ import tensorflow as tf
 from tensorflow.keras import backend
 import matplotlib.pyplot as plt
 
+# set random seed
+tf.random.set_seed(2023)
+
+# config
+batch_size = 4
+image_size = 128
+mean = tf.constant([0.485, 0.456, 0.406])
+std = tf.constant([0.229, 0.224, 0.225])
+# lr = 0.00006
+lr = 0.001
+epochs = 1
 
 # Dataset
 # Function to read the image file
@@ -73,17 +84,13 @@ len(data_train), len(data_valid), len(data_test)
 
 
 # Normalization and Image Resizing
-
 # P.S. You could do data augmentation here as well. I kept it very simple
-image_size = 128
-mean = tf.constant([0.485, 0.456, 0.406])
-std = tf.constant([0.229, 0.224, 0.225])
-
-
 def normalize(input_image, input_mask):
     input_image = tf.image.convert_image_dtype(input_image, tf.float32)
     input_image = (input_image - mean) / tf.maximum(std, backend.epsilon())
-    input_mask = input_mask / 255
+    input_mask = tf.where(input_mask > 245, True, False)
+    input_mask = tf.math.reduce_any(input_mask, axis=-1)
+    input_mask = tf.cast(input_mask, dtype=tf.uint8)
     return input_image, input_mask
 
 
@@ -103,34 +110,35 @@ train_data = [load_image(datapoint) for datapoint in data_train]
 valid_data = [load_image(datapoint) for datapoint in data_valid]
 test_data = [load_image(datapoint) for datapoint in data_test]
 
-# Visualize sample
-index = 120
-plt.figure()
-plt.imshow(train_data[index]["labels"])
-plt.figure()
-plt.imshow(tf.keras.utils.array_to_img(tf.transpose(train_data[index]['pixel_values'], (1, 2, 0))))
+# Visualize sample (uncomment for debug)
+# index = 120
+# plt.figure()
+# plt.imshow(train_data[index]["labels"])
+# plt.show()
+# plt.figure()
+# plt.imshow(tf.keras.utils.array_to_img(tf.transpose(train_data[index]['pixel_values'], (1, 2, 0))))
+# plt.show()
 
 def generator_train():
     for datapoint in train_data:
         yield datapoint
-        
+
 def generator_valid():
     for datapoint in valid_data:
         yield datapoint
-        
+
 def generator_test():
     for datapoint in test_data:
         yield datapoint
 
 
 # Using <code>tf.data.Dataset</code> to build input pipeline
-batch_size = 4
 auto = tf.data.AUTOTUNE
 
 train_ds = tf.data.Dataset.from_generator(generator_train, output_types={"pixel_values": tf.float32, "labels": tf.int32}).cache().shuffle(batch_size * 10).batch(batch_size).prefetch(auto)
-    
+
 valid_ds = tf.data.Dataset.from_generator(generator_valid, output_types={"pixel_values": tf.float32, "labels": tf.int32}).batch(batch_size).prefetch(auto)
-    
+
 test_ds = tf.data.Dataset.from_generator(generator_test, output_types={"pixel_values": tf.float32, "labels": tf.int32}).batch(batch_size).prefetch(auto)
 print(train_ds.element_spec)
 
@@ -169,13 +177,10 @@ model = TFSegformerForSemanticSegmentation.from_pretrained(
     id2label=id2label,
     label2id=label2id,
     ignore_mismatched_sizes=True,
-    
 )
 
 
 # Hyperparameters and compiling the model
-lr = 0.00006
-epochs = 1
 optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 model.compile(optimizer=optimizer)
 
@@ -226,7 +231,7 @@ history = model.fit(
     callbacks=[DisplayCallback(test_ds)],
     epochs=epochs,
 )
-model.save("./weights/segformer-5-b0.h5")
+model.save_weights("./weights/segformer-5-b0.h5")
 
 
 # Loss Plot
