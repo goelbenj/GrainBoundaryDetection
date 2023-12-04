@@ -96,7 +96,7 @@ len(data_train), len(data_valid), len(data_test)
 # In[ ]:
 
 
-image_size = 512
+image_size = 400
 mean = tf.constant([0.485, 0.456, 0.406])
 std = tf.constant([0.229, 0.224, 0.225])
 
@@ -231,7 +231,7 @@ model = TFSegformerForSemanticSegmentation.from_pretrained(
 
 
 lr = 0.00006
-epochs = 20
+epochs = 100
 optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 model.compile(optimizer=optimizer)
 
