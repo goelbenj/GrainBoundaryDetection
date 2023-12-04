@@ -319,5 +319,8 @@ def calc_max_min_diameter_and_aspect_ratio(masks):
     print(f"Max Diameter Std. Dev: {np.std(MAX)}")
 
 
+Y_t = Y_t.astype(np.uint8)
+calc_circularity(Y_t)
+calc_max_min_diameter_and_aspect_ratio(Y_t)
 calc_circularity(preds_val_t)
 calc_max_min_diameter_and_aspect_ratio(preds_val_t)
