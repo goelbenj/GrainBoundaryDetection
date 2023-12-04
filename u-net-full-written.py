@@ -259,6 +259,8 @@ def calc_grain_dimension_measurements(masks):
     MAX = []
     MIN = []
     AR = []
+    X = []
+    Y = []
     for pred in masks:
         # pred *= 255
         # ret, thresh = cv2.threshold(pred, 127, 255, cv2.THRESH_BINARY)
@@ -296,7 +298,14 @@ def calc_grain_dimension_measurements(masks):
             # Add the maximum and minimum distances for the current contour to the list of distances
             MAX.append([max_distance])
             MIN.append([min_distance])
-            aspect_ratio = max_distance/min_distance
+
+            # Get the bounding rectangle of the grain
+            x, y, w, h = cv2.boundingRect(contour)
+
+            # Calculate the x-diameter of the grain using the width of the bounding rectangle
+            X.append([w])
+            Y.append([h])
+            aspect_ratio = w/h
             AR.append([aspect_ratio])
 
     # Print results
@@ -306,6 +315,12 @@ def calc_grain_dimension_measurements(masks):
     print(f"Max Diameter Std. Dev: {np.std(MAX)}")
     print(f"Average Min Diameter {np.mean(MIN)}")
     print(f"Min Diameter Std. Dev: {np.std(MIN)}")
+    print(f"Average Aspect Ratio {np.mean(AR)}")
+    print(f"Aspect Ratio Std. Dev: {np.std(AR)}")
+    print(f"Average X-Diameter {np.mean(X)}")
+    print(f"X-Diameter Std. Dev: {np.std(X)}")
+    print(f"Average Y-Diameter {np.mean(Y)}")
+    print(f"Y-Diameter Std. Dev: {np.std(Y)}")
     print(f"Average Aspect Ratio {np.mean(AR)}")
     print(f"Aspect Ratio Std. Dev: {np.std(AR)}")
 
