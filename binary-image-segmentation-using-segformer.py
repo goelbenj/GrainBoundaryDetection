@@ -1,33 +1,21 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# # Installing Dependencies
-
-# In[ ]:
-
+# Installing Dependencies
 
 # ! pip install transformers
 # ! pip install tensorflow
 
 
-# # Imports
-
-# In[ ]:
-
-
+# Imports
 import os
 import tensorflow as tf
 from tensorflow.keras import backend
 import matplotlib.pyplot as plt
 
 
-# # Dataset
-
-# ### Function to read the image file
-
-# In[ ]:
-
-
+# Dataset
+# Function to read the image file
 def load_image_file(image_path, mask_path):
     image = tf.io.read_file(image_path)
     mask = tf.io.read_file(mask_path)
@@ -37,12 +25,7 @@ def load_image_file(image_path, mask_path):
 
     return {"image": image, "segmentation_mask": mask}
 
-
-# ### Loading the dataset
-
-# In[ ]:
-
-
+# Loading the dataset
 train_image_dir = "/Users/bengoel/Documents/GrainBoundaryDetection/GRAIN_DATA_SET/RG"
 train_mask_dir = "/Users/bengoel/Documents/GrainBoundaryDetection/GRAIN_DATA_SET/RGMask"
 valid_image_dir = "/Users/bengoel/Documents/GrainBoundaryDetection/GRAIN_DATA_SET/RG"
@@ -89,14 +72,10 @@ data_test = [load_image_file(image_path, mask_path) for image_path, mask_path in
 len(data_train), len(data_valid), len(data_test)
 
 
-# ### Normalization and Image Resizing
+# Normalization and Image Resizing
 
-# #### P.S. You could do data augmentation here as well. I kept it very simple
-
-# In[ ]:
-
-
-image_size = 512
+# P.S. You could do data augmentation here as well. I kept it very simple
+image_size = 128
 mean = tf.constant([0.485, 0.456, 0.406])
 std = tf.constant([0.229, 0.224, 0.225])
 
@@ -120,27 +99,16 @@ def load_image(datapoint):
     
     return {"pixel_values": input_image, "labels": tf.squeeze(input_mask)}
 
-
-# In[ ]:
-
-
 train_data = [load_image(datapoint) for datapoint in data_train]
 valid_data = [load_image(datapoint) for datapoint in data_valid]
 test_data = [load_image(datapoint) for datapoint in data_test]
 
-
-# In[ ]:
-
-
+# Visualize sample
 index = 120
 plt.figure()
 plt.imshow(train_data[index]["labels"])
 plt.figure()
 plt.imshow(tf.keras.utils.array_to_img(tf.transpose(train_data[index]['pixel_values'], (1, 2, 0))))
-
-
-# In[ ]:
-
 
 def generator_train():
     for datapoint in train_data:
@@ -155,11 +123,7 @@ def generator_test():
         yield datapoint
 
 
-# ### Using <code>tf.data.Dataset</code> to build input pipeline
-
-# In[ ]:
-
-
+# Using <code>tf.data.Dataset</code> to build input pipeline
 batch_size = 4
 auto = tf.data.AUTOTUNE
 
@@ -168,19 +132,10 @@ train_ds = tf.data.Dataset.from_generator(generator_train, output_types={"pixel_
 valid_ds = tf.data.Dataset.from_generator(generator_valid, output_types={"pixel_values": tf.float32, "labels": tf.int32}).batch(batch_size).prefetch(auto)
     
 test_ds = tf.data.Dataset.from_generator(generator_test, output_types={"pixel_values": tf.float32, "labels": tf.int32}).batch(batch_size).prefetch(auto)
-
-
-# In[ ]:
-
-
 print(train_ds.element_spec)
 
 
-# # Visualizing the data
-
-# In[ ]:
-
-
+# Visualizing the data
 def display(display_list):
     plt.figure(figsize=(15, 15))
 
@@ -193,7 +148,6 @@ def display(display_list):
         plt.axis("off")
     plt.show()
 
-
 for samples in train_ds.take(2):
     sample_image, sample_mask = samples["pixel_values"][0], samples["labels"][0]
     sample_image = tf.transpose(sample_image, (1, 2, 0))
@@ -202,11 +156,7 @@ for samples in train_ds.take(2):
     print(sample_image.shape)
 
 
-# # Model
-
-# In[ ]:
-
-
+# Model
 from transformers import TFSegformerForSemanticSegmentation
 
 model_checkpoint = "nvidia/mit-b0"
@@ -223,22 +173,14 @@ model = TFSegformerForSemanticSegmentation.from_pretrained(
 )
 
 
-# # Hyperparameters and compiling the model
-
-# In[ ]:
-
-
+# Hyperparameters and compiling the model
 lr = 0.00006
-epochs = 5
+epochs = 1
 optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 model.compile(optimizer=optimizer)
 
 
-# ### Callback to visualize image after every epoch
-
-# In[ ]:
-
-
+# Callback to visualize image after every epoch
 from IPython.display import clear_output
 
 
@@ -277,31 +219,19 @@ class DisplayCallback(tf.keras.callbacks.Callback):
         print("\nSample Prediction after epoch {}\n".format(epoch + 1))
 
 
-# # Training Loop
-
-# In[ ]:
-
-
+# Training Loop
 history = model.fit(
     train_ds,
     validation_data=valid_ds,
     callbacks=[DisplayCallback(test_ds)],
     epochs=epochs,
 )
+model.save("./weights/segformer-5-b0.h5")
 
 
-# In[ ]:
-
-
-model.save_weights("/kaggle/working/segformer-5-b1.h5")
-
-
-# # Loss Plot
-
-# In[ ]:
-
-
-plt.style.use("seaborn")
+# Loss Plot
+print(plt.style.available)
+plt.style.use("seaborn-v0_8")
 
 def display_training_curves(training, validation, title, subplot):
   ax = plt.subplot(subplot)
@@ -318,10 +248,5 @@ display_training_curves(history.history['loss'], history.history['val_loss'], 'L
 plt.savefig("train_eval_plot_segformer-5-b1.jpg")
 
 
-# # Predictions
-
-# In[ ]:
-
-
+# Predictions
 show_predictions(valid_ds, 10)
-
