@@ -24,6 +24,7 @@ std = tf.constant([0.229, 0.224, 0.225])
 # lr = 0.00006
 lr = 0.001
 epochs = 1
+train = False
 
 # Dataset
 # Function to read the image file
@@ -156,12 +157,13 @@ def display(display_list):
         plt.axis("off")
     plt.show()
 
-for samples in train_ds.take(2):
-    sample_image, sample_mask = samples["pixel_values"][0], samples["labels"][0]
-    sample_image = tf.transpose(sample_image, (1, 2, 0))
-    sample_mask = tf.expand_dims(sample_mask, -1)
-    display([sample_image, sample_mask])
-    print(sample_image.shape)
+# Uncomment for debugging
+# for samples in train_ds.take(2):
+#     sample_image, sample_mask = samples["pixel_values"][0], samples["labels"][0]
+#     sample_image = tf.transpose(sample_image, (1, 2, 0))
+#     sample_mask = tf.expand_dims(sample_mask, -1)
+#     display([sample_image, sample_mask])
+#     print(sample_image.shape)
 
 
 # Model
@@ -190,6 +192,10 @@ from IPython.display import clear_output
 
 
 def create_mask(pred_mask):
+    pred_mask = tf.transpose(pred_mask, (0, 2, 3, 1))
+    # Must resize output mask to original image dimensions
+    pred_mask = tf.image.resize(pred_mask, (image_size, image_size), method=tf.image.ResizeMethod.BILINEAR)
+    pred_mask = tf.transpose(pred_mask, (0, 3, 1, 2))
     pred_mask = tf.math.argmax(pred_mask, axis=1)
     pred_mask = tf.expand_dims(pred_mask, -1)
     return pred_mask[0]
@@ -225,33 +231,35 @@ class DisplayCallback(tf.keras.callbacks.Callback):
 
 
 # Training Loop
-history = model.fit(
-    train_ds,
-    validation_data=valid_ds,
-    callbacks=[DisplayCallback(test_ds)],
-    epochs=epochs,
-)
-model.save_weights("./weights/segformer-5-b0.h5")
+export_path = "./weights/segformer-5-b0.h5"
+if train:
+    history = model.fit(
+        train_ds,
+        validation_data=valid_ds,
+        callbacks=[DisplayCallback(test_ds)],
+        epochs=epochs,
+    )
+    model.save_weights(export_path)
 
+    # Loss Plot
+    print(plt.style.available)
+    plt.style.use("seaborn-v0_8")
 
-# Loss Plot
-print(plt.style.available)
-plt.style.use("seaborn-v0_8")
+    def display_training_curves(training, validation, title, subplot):
+        ax = plt.subplot(subplot)
+        ax.plot(training)
+        ax.plot(validation)
+        ax.set_title('Model '+ title)
+        ax.set_ylabel(title)
+        ax.set_xlabel('epoch')
+        ax.legend(['training', 'validation'])
 
-def display_training_curves(training, validation, title, subplot):
-  ax = plt.subplot(subplot)
-  ax.plot(training)
-  ax.plot(validation)
-  ax.set_title('Model '+ title)
-  ax.set_ylabel(title)
-  ax.set_xlabel('epoch')
-  ax.legend(['training', 'validation'])
-
-plt.subplots(figsize=(8,8))
-plt.tight_layout()
-display_training_curves(history.history['loss'], history.history['val_loss'], 'Loss', 111)
-plt.savefig("train_eval_plot_segformer-5-b1.jpg")
-
+    plt.subplots(figsize=(8,8))
+    plt.tight_layout()
+    display_training_curves(history.history['loss'], history.history['val_loss'], 'Loss', 111)
+    plt.savefig("train_eval_plot_segformer-5-b1.jpg")
+else:
+    model.load_weights(export_path)
 
 # Predictions
 show_predictions(valid_ds, 10)
