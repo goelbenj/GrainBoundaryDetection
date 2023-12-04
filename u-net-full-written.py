@@ -261,15 +261,24 @@ def calc_grain_dimension_measurements(masks):
     AR = []
     X = []
     Y = []
+    AREAS = []
+    NUM_GRAINS = 0
+    TOTAL_IMAGE_AREAS = len(masks) * IMG_WIDTH * IMG_HEIGHT
+    TOTAL_GRAIN_AREA_PERCENT = 0
+    TOTAL_GRAIN_BOUNDARY_AREA_PERCENT = 1 - TOTAL_GRAIN_AREA_PERCENT
     for pred in masks:
         # pred *= 255
         # ret, thresh = cv2.threshold(pred, 127, 255, cv2.THRESH_BINARY)
 
         contours, hierarchy = cv2.findContours(pred, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        # count total number of grains across all masks
+        NUM_GRAINS += len(contours)
+
         # Iterate through all the contours
         for i, contour in enumerate(contours):
             area = cv2.contourArea(contour)
+            AREAS.append(area)
             perimeter = cv2.arcLength(contour, True)
             # Only calculate metrics for non-pointwise contours
             if not perimeter:
@@ -307,6 +316,10 @@ def calc_grain_dimension_measurements(masks):
             Y.append([h])
             aspect_ratio = w/h
             AR.append([aspect_ratio])
+    # calculate total grain area percent
+    TOTAL_GRAIN_AREA_PERCENT = np.sum(AREAS) / TOTAL_IMAGE_AREAS
+    # calculate total grain boundary area percent
+    TOTAL_GRAIN_BOUNDARY_AREA_PERCENT = 1 - TOTAL_GRAIN_AREA_PERCENT
 
     # Print results
     print(f"Average Circularity: {np.mean(CR)}")
@@ -323,6 +336,11 @@ def calc_grain_dimension_measurements(masks):
     print(f"Y-Diameter Std. Dev: {np.std(Y)}")
     print(f"Average Aspect Ratio {np.mean(AR)}")
     print(f"Aspect Ratio Std. Dev: {np.std(AR)}")
+    print(f"Total Grains {NUM_GRAINS}")
+    print(f"Average Individual Grain Area: {np.mean(AREAS)}")
+    print(f"Individual Grain Area Std. Dev: {np.std(AREAS)}")
+    print(f"Total Grain Area Percent: {TOTAL_GRAIN_AREA_PERCENT}")
+    print(f"Total Grain Boundary Area Percent: {TOTAL_GRAIN_BOUNDARY_AREA_PERCENT}")
 
 
 Y_t = Y_t.astype(np.uint8)
