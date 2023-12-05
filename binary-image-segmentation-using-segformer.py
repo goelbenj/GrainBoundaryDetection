@@ -24,10 +24,10 @@ batch_size = 4
 image_size = 128
 mean = tf.constant([0.485, 0.456, 0.406])
 std = tf.constant([0.229, 0.224, 0.225])
-# lr = 0.00006
-lr = 0.001
-epochs = 1
-train = False
+lr = 0.00006
+# lr = 0.001
+epochs = 400
+train = True
 
 # Dataset
 # Function to read the image file
@@ -248,7 +248,10 @@ if train:
     history = model.fit(
         train_ds,
         validation_data=valid_ds,
-        callbacks=[DisplayCallback(test_ds)],
+        callbacks=[
+            DisplayCallback(test_ds),
+            tf.keras.callbacks.EarlyStopping(patience=10, monitor='val_loss'),
+            ],
         epochs=epochs,
     )
     model.save_weights(export_path)

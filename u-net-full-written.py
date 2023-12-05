@@ -39,8 +39,8 @@ IMG_WIDTH = 128
 IMG_HEIGHT = 128
 IMG_CHANNELS = 3
 DATA_SIZE = 480
-NUM_EPOCHS = 30
-TRAIN = False
+NUM_EPOCHS = 100
+TRAIN = True
 # set seed
 random.seed(2023)
 
@@ -175,7 +175,7 @@ if TRAIN:
     checkpointer = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True)
 
     callbacks = [
-            tf.keras.callbacks.EarlyStopping(patience=2, monitor='val_loss'),
+            tf.keras.callbacks.EarlyStopping(patience=10, monitor='val_loss'),
             tf.keras.callbacks.TensorBoard(log_dir='logs')]
 
     results = model.fit(X_train, Y_t, validation_split=0.1, batch_size=16, epochs=NUM_EPOCHS, callbacks=callbacks)
