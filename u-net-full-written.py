@@ -38,7 +38,8 @@ from tqdm import tqdm
 IMG_WIDTH = 128
 IMG_HEIGHT = 128
 IMG_CHANNELS = 3
-DATA_SIZE = 480
+DATA_SIZE = 800
+DATA_MIX = "MIX"  # one of "RG", "MIX", "AG"
 NUM_EPOCHS = 30
 TRAIN = False
 # set seed
@@ -48,15 +49,21 @@ random.seed(2023)
 image_dir = os.path.join(data_dir, 'RG')
 mask_dir = os.path.join(data_dir, 'RGMask')
 
-# Set the target image size
-target_size = (IMG_WIDTH, IMG_HEIGHT)
+# Create list of image and mask names
+val_image_names = sorted(os.listdir(image_dir))
+val_mask_names = sorted(os.listdir(mask_dir))
 
 # Create empty lists to hold the images and masks
 images = []
 masks = []
+val_images = []
+val_masks = []
 
-# Iterate through the directories and load the images and masks
-for i, file in enumerate(sorted(os.listdir(image_dir))):
+# Set the target image size
+target_size = (IMG_WIDTH, IMG_HEIGHT)
+
+# Load val images and masks first
+for i, file in enumerate(val_image_names):
     if i == DATA_SIZE:
         break
     # Load the image and resize to the target size
@@ -64,9 +71,8 @@ for i, file in enumerate(sorted(os.listdir(image_dir))):
     img = tf.image.resize(img, target_size).numpy()
     
     # Append the resized image to the list of images
-    images.append(img)
-    
-for i, file in enumerate(sorted(os.listdir(mask_dir))):
+    val_images.append(img)
+for i, file in enumerate(val_mask_names):
     if i == DATA_SIZE:
         break
     # Load the corresponding mask and resize to the target size
@@ -76,8 +82,59 @@ for i, file in enumerate(sorted(os.listdir(mask_dir))):
     mask = tf.image.resize(mask, target_size).numpy()
     
     # Append the resized mask to the list of masks
-    masks.append(mask)
-    
+    val_masks.append(mask)
+
+if DATA_MIX in ["RG", "MIX"]:
+    image_names = sorted(os.listdir(image_dir))
+    mask_names = sorted(os.listdir(mask_dir))
+    # Iterate through the directories and load the images and masks
+    for i, file in enumerate(image_names):
+        if i == DATA_SIZE:
+            break
+        # Load the image and resize to the target size
+        img = np.array(PIL.Image.open(os.path.join(image_dir, file)))
+        img = tf.image.resize(img, target_size).numpy()
+        
+        # Append the resized image to the list of images
+        images.append(img)
+    for i, file in enumerate(mask_names):
+        if i == DATA_SIZE:
+            break
+        # Load the corresponding mask and resize to the target size
+        #mask_file = file.replace('.jpg', '.png')
+        mask = np.array(PIL.Image.open(os.path.join(mask_dir, file)))
+        mask = np.expand_dims(mask, axis=-1)
+        mask = tf.image.resize(mask, target_size).numpy()
+        
+        # Append the resized mask to the list of masks
+        masks.append(mask)
+
+if DATA_MIX in ["MIX", "AG"]:
+    image_dir = os.path.join(data_dir, "AG")
+    mask_dir = os.path.join(data_dir, "AGMask")
+    image_names = sorted(os.listdir(image_dir))
+    mask_names = sorted(os.listdir(mask_dir))
+    for i, file in enumerate(mask_names):
+        if i == DATA_SIZE:
+            break
+        # Load the corresponding mask and resize to the target size
+        #mask_file = file.replace('.jpg', '.png')
+        mask = np.array(PIL.Image.open(os.path.join(mask_dir, file)))
+        mask = np.expand_dims(mask, axis=-1)
+        mask = tf.image.resize(mask, target_size).numpy()
+        
+        # Append the resized mask to the list of masks
+        masks.append(mask)
+    for i, file in enumerate(image_names):
+        if i == DATA_SIZE:
+            break
+        # Load the image and resize to the target size
+        img = np.array(PIL.Image.open(os.path.join(image_dir, file)).convert('RGB'))
+        img = tf.image.resize(img, target_size).numpy()
+        
+        # Append the resized image to the list of images
+        images.append(img)
+
 
 image_x = random.randint(0, DATA_SIZE)
 image_x
@@ -89,19 +146,23 @@ imshow(masks[image_x])
 # plt.show()
 
 # create the X and Y (input and output)
-
 X_train = np.array(images)
 Y_train = np.array(masks)
+x_val = np.array(val_images)
+y_val = np.array(val_masks)
 
 # change the Y to a boolean
 Y_train = np.where(Y_train > 245, True, False)
+y_val = np.where(y_val > 245, True, False)
 
 mask_length = len(masks)
+val_mask_length = len(val_masks)
 #convert the boolean where it is true (any of the 3 channels) to a (336, 128, 128, 1)
 #basically reduce the 3 channel dimension RGB to just one boolean value
-
 Y_t= np.any(Y_train, axis=-1)
 Y_t = Y_t.reshape(mask_length, IMG_WIDTH, IMG_HEIGHT, 1)
+y_val= np.any(y_val, axis=-1)
+y_val = y_val.reshape(val_mask_length, IMG_WIDTH, IMG_HEIGHT, 1)
 ################################
 
 if TRAIN:
@@ -187,8 +248,8 @@ else:
 
 idx = random.randint(0, len(X_train))
 
-preds_train = model.predict(X_train[:int(X_train.shape[0]*0.9)], verbose=1)
-preds_val = model.predict(X_train[int(X_train.shape[0]*0.9):], verbose=1)
+preds_train = model.predict(X_train, verbose=1)
+preds_val = model.predict(x_val, verbose=1)
 #preds_test = model.predict(X_test, verbose=1)
 
  
@@ -207,9 +268,9 @@ imshow(np.squeeze(preds_train_t[ix]))
 
 # Perform a sanity check on some random validation samples
 ix = random.randint(0, len(preds_val_t))
-imshow(X_train[int(X_train.shape[0]*0.9):][ix])
+imshow(x_val[ix])
 # plt.show()
-imshow(np.squeeze(Y_t[int(Y_train.shape[0]*0.9):][ix]))
+imshow(np.squeeze(y_val[ix]))
 # plt.show()
 imshow(np.squeeze(preds_val_t[ix]))
 # plt.show()
@@ -234,7 +295,7 @@ def show_predictions(dataset=None, num=1, save_name=None):
             os.makedirs(save_name)
         for i, sample in enumerate(range(-num, 0)):
             file_name = os.path.join(save_name, f'{i}.jpg')
-            images, masks = X_train[sample], Y_t[sample]
+            images, masks = x_val[sample], y_val[sample]
             pred_masks = preds_val_t[sample]
             display([images, masks, pred_masks], file_name)
 
@@ -266,8 +327,8 @@ def calc_dice_score(real_mask, pred_mask):
 
     print(f'Average dice coefficient for the data it was trained on: {average_dice_coefficient:.4f}')
 
-calc_dice_score(Y_t, Y_t)
-calc_dice_score(Y_t, preds_train_t)
+calc_dice_score(y_val, y_val)
+calc_dice_score(y_val, preds_val_t)
 # Now the measurement for LOOPS, one for each of the variables 3 total
 # 1. circularity
 # 2. max/min
@@ -365,8 +426,8 @@ def calc_grain_dimension_measurements(masks):
     print(f"Total Grain Boundary Area Percent: {TOTAL_GRAIN_BOUNDARY_AREA_PERCENT}")
 
 
-Y_t = Y_t.astype(np.uint8)
+y_val = y_val.astype(np.uint8)
 print("Baseline Statistics:")
-calc_grain_dimension_measurements(Y_t)
+calc_grain_dimension_measurements(y_val)
 print("Test Model Statistics:")
-calc_grain_dimension_measurements(preds_train_t)
+calc_grain_dimension_measurements(preds_val_t)
