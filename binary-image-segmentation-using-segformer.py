@@ -8,10 +8,13 @@
 
 
 # Imports
+import cv2
 import os
 import tensorflow as tf
 from tensorflow.keras import backend
+import math
 import matplotlib.pyplot as plt
+import numpy as np
 
 # set random seed
 tf.random.set_seed(2023)
@@ -158,7 +161,7 @@ def display(display_list, save_name=None):
         plt.axis("off")
     if save_name is not None:
         plt.savefig(save_name)
-    plt.show()
+    # plt.show()
 
 # Uncomment for debugging
 # for samples in train_ds.take(2):
@@ -195,8 +198,15 @@ def create_mask(pred_mask):
     pred_mask = tf.transpose(pred_mask, (0, 3, 1, 2))
     pred_mask = tf.math.argmax(pred_mask, axis=1)
     pred_mask = tf.expand_dims(pred_mask, -1)
-    return pred_mask[0]
+    pred_mask = tf.cast(pred_mask, dtype=tf.uint8)
+    return pred_mask
 
+def model_predict(model, sample):
+    images, masks = sample["pixel_values"], sample["labels"]
+    masks = tf.expand_dims(masks, -1)
+    pred_masks = model.predict(images, verbose=1).logits
+    images = tf.transpose(images, (0, 2, 3, 1))
+    return images, masks, pred_masks
 
 def show_predictions(dataset=None, num=1, save_name=None):
     if dataset:
@@ -204,11 +214,8 @@ def show_predictions(dataset=None, num=1, save_name=None):
             os.makedirs(save_name)
         for i, sample in enumerate(dataset.take(num)):
             file_name = os.path.join(save_name, f'{i}.jpg')
-            images, masks = sample["pixel_values"], sample["labels"]
-            masks = tf.expand_dims(masks, -1)
-            pred_masks = model.predict(images).logits
-            images = tf.transpose(images, (0, 2, 3, 1))
-            display([images[0], masks[0], create_mask(pred_masks)], file_name)
+            images, masks, pred_masks = model_predict(model, sample)
+            display([images[0], masks[0], create_mask(pred_masks[0:1])[0]], file_name)
     else:
         display(
             [
@@ -268,3 +275,146 @@ else:
 
 # Predictions
 show_predictions(valid_ds, 10, save_name='./outputs/infer')
+
+def eval(model, dataset):
+    result_masks = tf.reshape(tf.constant([], dtype=tf.uint8),
+                              (0, image_size, image_size, 1))
+    for i, sample in enumerate(dataset):
+        images, masks, pred_masks = model_predict(model, sample)
+        pred_masks = create_mask(pred_masks)
+        result_masks = tf.concat([result_masks, pred_masks], axis=0)
+    return result_masks
+
+Y_t = tf.convert_to_tensor([x['labels'] for x in generator_valid()])
+Y_t = tf.expand_dims(Y_t, axis=-1).numpy()
+preds_train_t = eval(model, valid_ds).numpy()
+# preds_val_t = eval(model, valid_ds).numpy()
+
+def calc_dice_score(real_mask, pred_mask):
+    # calculcate dice coefficients
+    # Initialize a list to store the dice coefficients for each mask
+    dice_coefficients = []
+
+    # Iterate through the masks in both directories
+    for i in range(len(pred_mask)):
+        # Calculate the intersection of the masks
+        intersection = np.sum(pred_mask[i] * real_mask[i])
+
+        # Calculate the size of each mask
+        predicted_mask_size = np.sum(pred_mask[i])
+        real_mask_size = np.sum(real_mask[i])
+
+        # Calculate the dice coefficient for the two masks
+        dice = 2 * intersection / (predicted_mask_size + real_mask_size)
+
+        # Add the dice coefficient to the list
+        dice_coefficients.append(dice)
+
+        # Calculate the average dice coefficient for the set of masks
+        average_dice_coefficient = np.mean(dice_coefficients)
+
+    print(f'Average dice coefficient for the data it was trained on: {average_dice_coefficient:.4f}')
+
+calc_dice_score(Y_t, Y_t)
+calc_dice_score(Y_t, preds_train_t)
+
+# Now the measurement for LOOPS, one for each of the variables 3 total
+# 1. circularity
+# 2. max/min
+# 3. X/Y (aspect ratio)
+
+# This loop reads all the images and then stores the area of each grain for the image in an array
+# Circularity, max diameter, min diameter, and aspect ratio for all masks
+def calc_grain_dimension_measurements(masks):
+    CR = []
+    MAX = []
+    MIN = []
+    AR = []
+    X = []
+    Y = []
+    AREAS = []
+    NUM_GRAINS = 0
+    TOTAL_IMAGE_AREAS = len(masks) * image_size * image_size
+    TOTAL_GRAIN_AREA_PERCENT = 0
+    TOTAL_GRAIN_BOUNDARY_AREA_PERCENT = 1 - TOTAL_GRAIN_AREA_PERCENT
+    for pred in masks:
+        # pred *= 255
+        # ret, thresh = cv2.threshold(pred, 127, 255, cv2.THRESH_BINARY)
+
+        contours, hierarchy = cv2.findContours(pred, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # count total number of grains across all masks
+        NUM_GRAINS += len(contours)
+
+        # Iterate through all the contours
+        for i, contour in enumerate(contours):
+            area = cv2.contourArea(contour)
+            AREAS.append(area)
+            perimeter = cv2.arcLength(contour, True)
+            # Only calculate metrics for non-pointwise contours
+            if not perimeter:
+                continue
+            circularity_ratio = (4 * math.pi * area) / (perimeter ** 2)
+            CR.append(circularity_ratio)
+
+            # Calculate the convex hull of the contour
+            hull = cv2.convexHull(contour)
+            # Initialize the maximum and minimum distances to zero
+            max_distance = 0
+            min_distance = float('inf')
+
+            # Iterate through all pairs of points on the convex hull
+            for i in range(len(hull)):
+                for j in range(i+1, len(hull)):
+                    # Calculate the distance between the two points
+                    distance = np.sqrt((hull[i][0][0] - hull[j][0][0])**2 + (hull[i][0][1] - hull[j][0][1])**2)
+
+                    # Update the maximum and minimum distances if necessary
+                    if distance > max_distance:
+                        max_distance = distance
+                    if distance < min_distance:
+                        min_distance = distance
+
+            # Add the maximum and minimum distances for the current contour to the list of distances
+            MAX.append([max_distance])
+            MIN.append([min_distance])
+
+            # Get the bounding rectangle of the grain
+            x, y, w, h = cv2.boundingRect(contour)
+
+            # Calculate the x-diameter of the grain using the width of the bounding rectangle
+            X.append([w])
+            Y.append([h])
+            aspect_ratio = w/h
+            AR.append([aspect_ratio])
+    # calculate total grain area percent
+    TOTAL_GRAIN_AREA_PERCENT = np.sum(AREAS) / TOTAL_IMAGE_AREAS
+    # calculate total grain boundary area percent
+    TOTAL_GRAIN_BOUNDARY_AREA_PERCENT = 1 - TOTAL_GRAIN_AREA_PERCENT
+
+    # Print results
+    print(f"Average Circularity: {np.mean(CR)}")
+    print(f"Circularity Std. Dev: {np.std(CR)}")
+    print(f"Average Max Diameter {np.mean(MAX)}")
+    print(f"Max Diameter Std. Dev: {np.std(MAX)}")
+    print(f"Average Min Diameter {np.mean(MIN)}")
+    print(f"Min Diameter Std. Dev: {np.std(MIN)}")
+    print(f"Average Aspect Ratio {np.mean(AR)}")
+    print(f"Aspect Ratio Std. Dev: {np.std(AR)}")
+    print(f"Average X-Diameter {np.mean(X)}")
+    print(f"X-Diameter Std. Dev: {np.std(X)}")
+    print(f"Average Y-Diameter {np.mean(Y)}")
+    print(f"Y-Diameter Std. Dev: {np.std(Y)}")
+    print(f"Average Aspect Ratio {np.mean(AR)}")
+    print(f"Aspect Ratio Std. Dev: {np.std(AR)}")
+    print(f"Total Grains: {NUM_GRAINS}")
+    print(f"Average Individual Grain Area: {np.mean(AREAS)}")
+    print(f"Individual Grain Area Std. Dev: {np.std(AREAS)}")
+    print(f"Total Grain Area Percent: {TOTAL_GRAIN_AREA_PERCENT}")
+    print(f"Total Grain Boundary Area Percent: {TOTAL_GRAIN_BOUNDARY_AREA_PERCENT}")
+
+
+print("Baseline Statistics:")
+calc_grain_dimension_measurements(Y_t)
+print("Test Model Statistics:")
+calc_grain_dimension_measurements(preds_train_t)
