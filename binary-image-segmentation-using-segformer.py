@@ -10,6 +10,7 @@
 # Imports
 import cv2
 import os
+from pathlib import Path
 import tensorflow as tf
 from tensorflow.keras import backend
 import math
@@ -24,6 +25,7 @@ batch_size = 4
 image_size = 128
 mean = tf.constant([0.485, 0.456, 0.406])
 std = tf.constant([0.229, 0.224, 0.225])
+DATA_MIX = "MIX"  # one of "RG", "MIX", "AG"
 # lr = 0.00006
 lr = 0.001
 epochs = 1
@@ -41,9 +43,10 @@ def load_image_file(image_path, mask_path):
     return {"image": image, "segmentation_mask": mask}
 
 
-# Loading the dataset
-train_image_dir = "./GRAIN_DATA_SET/RG"
-train_mask_dir = "./GRAIN_DATA_SET/RGMask"
+# Loading the data
+data_dir = Path('./GRAIN_DATA_SET')
+train_image_dir = os.path.join(data_dir, "RG")
+train_mask_dir = os.path.join(data_dir, "RGMask")
 valid_image_dir = train_image_dir
 valid_mask_dir = train_mask_dir
 test_image_dir = train_image_dir
@@ -60,11 +63,21 @@ test_image_names = sorted(os.listdir(test_image_dir))
 test_mask_names = sorted(os.listdir(test_mask_dir))
 
 train_pairs = []
-for img_name in train_image_names:
-    # Check if image file name matches mask file name
-    mask_name = img_name.replace("RG", "RGMask")
-    if mask_name in train_mask_names:
-        train_pairs.append((os.path.join(train_image_dir, img_name), os.path.join(train_mask_dir, mask_name)))
+if DATA_MIX in ["RG", "MIX"]:
+    for img_name in train_image_names:
+        # Check if image file name matches mask file name
+        mask_name = img_name.replace("RG", "RGMask")
+        if mask_name in train_mask_names:
+            train_pairs.append((os.path.join(train_image_dir, img_name), os.path.join(train_mask_dir, mask_name)))
+if DATA_MIX in ["MIX", "AG"]:
+    train_image_dir = os.path.join(data_dir, "AG")
+    train_mask_dir = os.path.join(data_dir, "AGMask")
+    train_image_names = sorted(os.listdir(train_image_dir))
+    train_mask_names = sorted(os.listdir(train_mask_dir))
+    for img_name in train_image_names:
+        mask_name = img_name.replace("AG_NOISE", "AG")
+        if mask_name in train_mask_names:
+            train_pairs.append((os.path.join(train_image_dir, img_name), os.path.join(train_mask_dir, mask_name)))
         
 valid_pairs = []
 for img_name in valid_image_names:
