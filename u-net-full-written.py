@@ -215,37 +215,33 @@ imshow(np.squeeze(preds_val_t[ix]))
 # plt.show()
 
 
+def calc_dice_score(real_mask, pred_mask):
+    # calculcate dice coefficients
+    # Initialize a list to store the dice coefficients for each mask
+    dice_coefficients = []
 
-# calculcate dice coefficients
-# Initialize a list to store the dice coefficients for each mask
-dice_coefficients = []
+    # Iterate through the masks in both directories
+    for i in range(len(pred_mask)):
+        # Calculate the intersection of the masks
+        intersection = np.sum(pred_mask[i] * real_mask[i])
 
-loop = len(preds_train_t)
+        # Calculate the size of each mask
+        predicted_mask_size = np.sum(pred_mask[i])
+        real_mask_size = np.sum(real_mask[i])
 
-real_mask = Y_t
-pred_mask = preds_train_t
+        # Calculate the dice coefficient for the two masks
+        dice = 2 * intersection / (predicted_mask_size + real_mask_size)
 
+        # Add the dice coefficient to the list
+        dice_coefficients.append(dice)
 
-# Iterate through the masks in both directories
-for i in range(loop):
-  # Calculate the intersection of the masks
-  intersection = np.sum(pred_mask[i] * real_mask[i])
+        # Calculate the average dice coefficient for the set of masks
+        average_dice_coefficient = np.mean(dice_coefficients)
 
-  # Calculate the size of each mask
-  predicted_mask_size = np.sum(pred_mask[i])
-  real_mask_size = np.sum(real_mask[i])
+    print(f'Average dice coefficient for the data it was trained on: {average_dice_coefficient:.4f}')
 
-  # Calculate the dice coefficient for the two masks
-  dice = 2 * intersection / (predicted_mask_size + real_mask_size)
-
-  # Add the dice coefficient to the list
-  dice_coefficients.append(dice)
-
-# Calculate the average dice coefficient for the set of masks
-average_dice_coefficient = np.mean(dice_coefficients)
-
-print(f'Average dice coefficient for the data it was trained on: {average_dice_coefficient:.4f}')
-
+calc_dice_score(Y_t, Y_t)
+calc_dice_score(Y_t, preds_train_t)
 # Now the measurement for LOOPS, one for each of the variables 3 total
 # 1. circularity
 # 2. max/min
@@ -336,7 +332,7 @@ def calc_grain_dimension_measurements(masks):
     print(f"Y-Diameter Std. Dev: {np.std(Y)}")
     print(f"Average Aspect Ratio {np.mean(AR)}")
     print(f"Aspect Ratio Std. Dev: {np.std(AR)}")
-    print(f"Total Grains {NUM_GRAINS}")
+    print(f"Total Grains: {NUM_GRAINS}")
     print(f"Average Individual Grain Area: {np.mean(AREAS)}")
     print(f"Individual Grain Area Std. Dev: {np.std(AREAS)}")
     print(f"Total Grain Area Percent: {TOTAL_GRAIN_AREA_PERCENT}")
@@ -344,5 +340,7 @@ def calc_grain_dimension_measurements(masks):
 
 
 Y_t = Y_t.astype(np.uint8)
+print("Baseline Statistics:")
 calc_grain_dimension_measurements(Y_t)
-calc_grain_dimension_measurements(preds_val_t)
+print("Test Model Statistics:")
+calc_grain_dimension_measurements(preds_train_t)
