@@ -214,6 +214,32 @@ imshow(np.squeeze(Y_t[int(Y_train.shape[0]*0.9):][ix]))
 imshow(np.squeeze(preds_val_t[ix]))
 # plt.show()
 
+# Visualizing the data
+def display(display_list, save_name=None):
+    plt.figure(figsize=(15, 15))
+
+    title = ["Input Image", "True Mask", "Predicted Mask"]
+
+    for i in range(len(display_list)):
+        plt.subplot(1, len(display_list), i + 1)
+        plt.title(title[i])
+        plt.imshow(tf.keras.utils.array_to_img(display_list[i]))
+        plt.axis("off")
+    if save_name is not None:
+        plt.savefig(save_name)
+
+def show_predictions(dataset=None, num=1, save_name=None):
+    if dataset is not None:
+        if not os.path.exists(save_name):
+            os.makedirs(save_name)
+        for i, sample in enumerate(range(-num, 0)):
+            file_name = os.path.join(save_name, f'{i}.jpg')
+            images, masks = X_train[sample], Y_t[sample]
+            pred_masks = preds_val_t[sample]
+            display([images, masks, pred_masks], file_name)
+
+# Predictions
+show_predictions(preds_val_t, 10, save_name='./u-net-outputs/infer')
 
 def calc_dice_score(real_mask, pred_mask):
     # calculcate dice coefficients

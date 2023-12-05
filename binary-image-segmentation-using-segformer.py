@@ -212,9 +212,14 @@ def show_predictions(dataset=None, num=1, save_name=None):
     if dataset:
         if not os.path.exists(save_name):
             os.makedirs(save_name)
-        for i, sample in enumerate(dataset.take(num)):
+        # for i, sample in enumerate(dataset.take(num)):
+        for i, sample in enumerate(range(-num, 0)):
+            sample = dataset[sample]
+            temp_sample = dict()
+            temp_sample['labels'] = tf.expand_dims(sample['labels'], axis=0)
+            temp_sample['pixel_values'] = tf.expand_dims(sample['pixel_values'], axis=0)
             file_name = os.path.join(save_name, f'{i}.jpg')
-            images, masks, pred_masks = model_predict(model, sample)
+            images, masks, pred_masks = model_predict(model, temp_sample)
             display([images[0], masks[0], create_mask(pred_masks[0:1])[0]], file_name)
     else:
         display(
@@ -248,7 +253,7 @@ if train:
     history = model.fit(
         train_ds,
         validation_data=valid_ds,
-        callbacks=[DisplayCallback(test_ds)],
+        callbacks=[DisplayCallback(test_data)],
         epochs=epochs,
     )
     model.save_weights(export_path)
@@ -274,7 +279,7 @@ else:
     model.load_weights(export_path)
 
 # Predictions
-show_predictions(valid_ds, 10, save_name='./outputs/infer')
+show_predictions(valid_data, 10, save_name='./outputs/infer')
 
 def eval(model, dataset):
     result_masks = tf.reshape(tf.constant([], dtype=tf.uint8),
