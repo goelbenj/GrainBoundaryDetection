@@ -16,20 +16,23 @@ from tensorflow.keras import backend
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+import PIL
 
 # set random seed
 tf.random.set_seed(2023)
 
 # config
+export_path = "./weights/segformer-rg-b0.h5"
 batch_size = 4
-image_size = 128
+image_size = 800
 mean = tf.constant([0.485, 0.456, 0.406])
 std = tf.constant([0.229, 0.224, 0.225])
-DATA_MIX = "AG"  # one of "RG", "MIX", "AG"
+DATA_MIX = "RG"  # one of "RG", "MIX", "AG"
 lr = 0.00006
 # lr = 0.001
 epochs = 400
-train = True
+train = False
+INFER = False
 
 # Dataset
 # Function to read the image file
@@ -37,17 +40,30 @@ def load_image_file(image_path, mask_path):
     image = tf.io.read_file(image_path)
     mask = tf.io.read_file(mask_path)
 
-    image = tf.image.decode_jpeg(image, channels=3)
-    mask = tf.image.decode_png(mask, channels=1)
+    try:
+        image = tf.image.decode_jpeg(image, channels=3)
+    except:
+        image = PIL.Image.open(image_path).convert("RGB")
+        image = tf.convert_to_tensor(image)
+
+    try:
+        mask = tf.image.decode_png(mask, channels=1)
+    except:
+        mask = PIL.Image.open(mask_path).convert("RGB")
+        mask = tf.convert_to_tensor(mask)
 
     return {"image": image, "segmentation_mask": mask}
 
 
 # Loading the data
 data_dir = Path('./GRAIN_DATA_SET')
+val_data_dir = Path('./fastfinecut-images')
 train_image_dir = os.path.join(data_dir, "RG")
 train_mask_dir = os.path.join(data_dir, "RGMask")
-valid_image_dir = train_image_dir
+if INFER:
+    valid_image_dir = val_data_dir
+else:
+    valid_image_dir = train_image_dir
 valid_mask_dir = train_mask_dir
 test_image_dir = train_image_dir
 test_mask_dir = train_mask_dir
@@ -82,9 +98,12 @@ if DATA_MIX in ["MIX", "AG"]:
 valid_pairs = []
 for img_name in valid_image_names:
     # Check if image file name matches mask file name
-    mask_name = img_name.replace("RG", "RGMask")
-    if mask_name in valid_mask_names:
-        valid_pairs.append((os.path.join(valid_image_dir, img_name), os.path.join(valid_mask_dir, mask_name)))
+    if INFER:
+        valid_pairs.append((os.path.join(valid_image_dir, img_name), os.path.join(valid_image_dir, img_name)))
+    else:
+        mask_name = img_name.replace("RG", "RGMask")
+        if mask_name in valid_mask_names:
+            valid_pairs.append((os.path.join(valid_image_dir, img_name), os.path.join(valid_mask_dir, mask_name)))
 
 test_pairs = []
 for img_name in test_image_names:
@@ -257,7 +276,6 @@ class DisplayCallback(tf.keras.callbacks.Callback):
 
 
 # Training Loop
-export_path = "./weights/segformer-5-b0.h5"
 if train:
     # Hyperparameters and compiling the model
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
@@ -295,7 +313,10 @@ else:
     model.load_weights(export_path)
 
 # Predictions
-show_predictions(valid_data, 10, save_name='./outputs/infer')
+if INFER:
+    show_predictions(valid_data, 5, save_name='./segformer-800-infer-outputs')
+else:
+    show_predictions(valid_data, 10, save_name='./outputs/infer')
 
 def eval(model, dataset):
     result_masks = tf.reshape(tf.constant([], dtype=tf.uint8),
