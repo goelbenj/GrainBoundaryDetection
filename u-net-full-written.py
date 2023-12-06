@@ -13,7 +13,6 @@ from pathlib import Path
 # For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
 
 import os
-data_dir = Path('./GRAIN_DATA_SET')
 # for dirname, _, filenames in os.walk(data_dir):
     #for filename in filenames:
         #print(os.path.join(dirname, filename))
@@ -35,23 +34,30 @@ import tensorflow as tf
 from tqdm import tqdm 
 
 
-model_save_name = 'MIX_Grains_DETECTION_UNET.h5'
+model_save_name = 'AG_Grains_DETECTION_UNET.h5'
 IMG_WIDTH = 128
 IMG_HEIGHT = 128
 IMG_CHANNELS = 3
 DATA_SIZE = 800
-DATA_MIX = "AG"  # one of "RG", "MIX", "AG"
+DATA_MIX = "RG"  # one of "RG", "MIX", "AG"
 NUM_EPOCHS = 100
-TRAIN = True
+TRAIN = False
+INFER = True
 # set seed
 random.seed(2023)
 
 # Set the directories containing the images and masks
+data_dir = Path('./GRAIN_DATA_SET')
+val_data_dir = Path('./fastfinecut-images')
 image_dir = os.path.join(data_dir, 'RG')
 mask_dir = os.path.join(data_dir, 'RGMask')
+if INFER:
+    val_image_dir = val_data_dir
+else:
+    val_image_dir = image_dir
 
 # Create list of image and mask names
-val_image_names = sorted(os.listdir(image_dir))
+val_image_names = sorted(os.listdir(val_image_dir))
 val_mask_names = sorted(os.listdir(mask_dir))
 
 # Create empty lists to hold the images and masks
@@ -68,7 +74,10 @@ for i, file in enumerate(val_image_names):
     if i == DATA_SIZE:
         break
     # Load the image and resize to the target size
-    img = np.array(PIL.Image.open(os.path.join(image_dir, file)))
+    if INFER:
+        img = np.array(PIL.Image.open(os.path.join(val_image_dir, file)).convert("RGB"))
+    else:
+        img = np.array(PIL.Image.open(os.path.join(image_dir, file)))
     img = tf.image.resize(img, target_size).numpy()
     
     # Append the resized image to the list of images
@@ -258,23 +267,24 @@ preds_train_t = (preds_train > 0.5).astype(np.uint8)
 preds_val_t = (preds_val > 0.5).astype(np.uint8)
 #preds_test_t = (preds_test > 0.5).astype(np.uint8)
 
-# Perform a sanity check on some random training samples
-ix = random.randint(0, len(preds_train_t))
-imshow(X_train[ix])
-# plt.show()
-imshow(np.squeeze(Y_t[ix]))
-# plt.show()
-imshow(np.squeeze(preds_train_t[ix]))
-# plt.show()
+if not INFER:
+    # Perform a sanity check on some random training samples
+    ix = random.randint(0, len(preds_train_t))
+    imshow(X_train[ix])
+    # plt.show()
+    imshow(np.squeeze(Y_t[ix]))
+    # plt.show()
+    imshow(np.squeeze(preds_train_t[ix]))
+    # plt.show()
 
-# Perform a sanity check on some random validation samples
-ix = random.randint(0, len(preds_val_t))
-imshow(x_val[ix])
-# plt.show()
-imshow(np.squeeze(y_val[ix]))
-# plt.show()
-imshow(np.squeeze(preds_val_t[ix]))
-# plt.show()
+    # Perform a sanity check on some random validation samples
+    ix = random.randint(0, len(preds_val_t))
+    imshow(x_val[ix])
+    # plt.show()
+    imshow(np.squeeze(y_val[ix]))
+    # plt.show()
+    imshow(np.squeeze(preds_val_t[ix]))
+    # plt.show()
 
 # Visualizing the data
 def display(display_list, save_name=None):
@@ -298,10 +308,16 @@ def show_predictions(dataset=None, num=1, save_name=None):
             file_name = os.path.join(save_name, f'{i}.jpg')
             images, masks = x_val[sample], y_val[sample]
             pred_masks = preds_val_t[sample]
-            display([images, masks, pred_masks], file_name)
+            if INFER:
+                display([images, pred_masks], file_name)
+            else:
+                display([images, masks, pred_masks], file_name)
 
 # Predictions
-show_predictions(preds_val_t, 10, save_name='./u-net-outputs/infer')
+if INFER:
+    show_predictions(preds_val_t, 5, save_name='./u-net-outputs/infer')
+else:
+    show_predictions(preds_val_t, 10, save_name='./u-net-outputs/infer')
 
 def calc_dice_score(real_mask, pred_mask):
     # calculcate dice coefficients
