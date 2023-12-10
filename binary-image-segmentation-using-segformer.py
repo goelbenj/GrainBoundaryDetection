@@ -22,12 +22,13 @@ import PIL
 tf.random.set_seed(2023)
 
 # config
-export_path = "./weights/segformer-rg-b0.h5"
+export_path = "./weights/segformer-mix-b0.h5"
+output_path = './segformer-mix-outputs'
 batch_size = 4
-image_size = 800
+image_size = 128
 mean = tf.constant([0.485, 0.456, 0.406])
 std = tf.constant([0.229, 0.224, 0.225])
-DATA_MIX = "RG"  # one of "RG", "MIX", "AG"
+DATA_MIX = "MIX"  # one of "RG", "MIX", "AG"
 lr = 0.00006
 # lr = 0.001
 epochs = 400
@@ -314,9 +315,9 @@ else:
 
 # Predictions
 if INFER:
-    show_predictions(valid_data, 5, save_name='./segformer-800-infer-outputs')
+    show_predictions(valid_data, 5, save_name=output_path)
 else:
-    show_predictions(valid_data, 10, save_name='./outputs/infer')
+    show_predictions(valid_data, 10, save_name=output_path)
 
 def eval(model, dataset):
     result_masks = tf.reshape(tf.constant([], dtype=tf.uint8),
